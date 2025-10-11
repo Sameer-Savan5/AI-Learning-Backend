@@ -1,4 +1,7 @@
 fastapi
 uvicorn
 supabase
+openai
 python-dotenv
+requests
+pydantic
