@@ -13,3 +13,4 @@ if __name__ == "__main__":
         print("Available Lessons:")
         for lesson in lessons:
             print(f"- {lesson['title']} ({lesson['content_type']}, {lesson['duration_minutes']} mins)")
+            
