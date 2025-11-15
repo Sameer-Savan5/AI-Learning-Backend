@@ -4,8 +4,24 @@ from pydantic import BaseModel
 from db_client import supabase
 from openai import OpenAI
 import os
+from dotenv import load_dotenv
 
-app = FastAPI()
+# =====================================================
+# LOAD ENVIRONMENT VARIABLES
+# =====================================================
+load_dotenv()
+
+# Verify environment variable (log to Render console)
+openai_key = os.getenv("OPENAI_API_KEY")
+if not openai_key:
+    print("❌ OPENAI_API_KEY not found in environment!")
+else:
+    print("✅ OPENAI_API_KEY detected successfully.")
+
+# =====================================================
+# APP INIT
+# =====================================================
+app = FastAPI(title="AI Learning Backend")
 
 # =====================================================
 # CORS CONFIG (allow frontend on Vercel)
@@ -14,7 +30,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://ai-learning-website-zeta.vercel.app",  # Frontend URL
-        "http://localhost:3000"  # Optional: for local testing
+        "https://ai-learning-website-one.vercel.app",   # Optional: your other frontend
+        "http://localhost:3000"                         # Local testing
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -22,9 +39,13 @@ app.add_middleware(
 )
 
 # =====================================================
-# OPENAI CONFIG
+# OPENAI CLIENT CONFIG
 # =====================================================
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+try:
+    client = OpenAI(api_key=openai_key)
+except Exception as e:
+    print(f"❌ Error initializing OpenAI client: {e}")
+    client = None
 
 # =====================================================
 # ROOT / HEALTH CHECK
@@ -32,6 +53,17 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 @app.get("/")
 def home():
     return {"message": "AI Learning Backend is running ✅"}
+
+# =====================================================
+# ENV TEST (Debug Only)
+# =====================================================
+@app.get("/check-env")
+def check_env():
+    """Debug endpoint to verify if Render can access API keys."""
+    return {
+        "OPENAI_API_KEY_found": bool(os.getenv("OPENAI_API_KEY")),
+        "OPENAI_API_KEY_prefix": str(os.getenv("OPENAI_API_KEY"))[:8] + "..." if os.getenv("OPENAI_API_KEY") else None
+    }
 
 # =====================================================
 # COURSES
@@ -63,7 +95,7 @@ def get_lessons():
 def get_users():
     try:
         response = supabase.table("users").select("*").execute()
-        print("DEBUG RAW RESPONSE:", response)  # helpful log
+        print("DEBUG RAW RESPONSE:", response)
         return response.data
     except Exception as e:
         import traceback
@@ -107,6 +139,9 @@ class ChatRequest(BaseModel):
 def chat(request: ChatRequest):
     """Answer all user questions using OpenAI GPT."""
     try:
+        if not client:
+            raise ValueError("OpenAI client not initialized")
+
         gpt_res = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -116,6 +151,7 @@ def chat(request: ChatRequest):
         )
         return {"response": gpt_res.choices[0].message.content}
     except Exception as e:
+        print("❌ Chat Error:", e)
         return {"response": f"Could not connect to AI model. Error: {e}"}
 
 # =====================================================
@@ -128,6 +164,9 @@ class TextGenRequest(BaseModel):
 def generate_text(request: TextGenRequest):
     """Generate explanations, summaries, or creative text using GPT."""
     try:
+        if not client:
+            raise ValueError("OpenAI client not initialized")
+
         gpt_res = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -137,4 +176,5 @@ def generate_text(request: TextGenRequest):
         )
         return {"output": gpt_res.choices[0].message.content}
     except Exception as e:
+        print("❌ TextGen Error:", e)
         return {"output": f"Could not generate text. Error: {e}"}
